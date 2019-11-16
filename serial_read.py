@@ -8,7 +8,7 @@ from threading import Thread
 from threading import Event
 
 #Time in seconds between saves
-SAVE_PERIOD = 2
+SAVE_PERIOD = 20
 
 class SaveThread(Thread):
     """
@@ -39,6 +39,7 @@ class SensorData:
         self.d_id = d_id
         self.length = length
         self.contents = []
+        self.updated = False
     
     """
        @return name of object
@@ -63,12 +64,24 @@ class SensorData:
     """
     def get_contents(self):
         return self.contents
+
+    """
+       @return updated - used for saving data
+    """
+    def is_updated(self):
+        return self.updated
     
     """
        @param new content to overwrite the old
     """
     def set_contents(self, contents):
         self.contents = contents
+
+    """
+       @param update status
+    """
+    def set_updated(self, status):
+        self.updated = status
 
 
 
@@ -128,6 +141,7 @@ def handshake_init():
     print('Data found on port.')
     #Read request byte
     req = ser.read(1)
+    sensor = None
     if (req == bytes(REQUEST)):
         #ACK request
         ser.write(ACK)
@@ -152,12 +166,15 @@ def save_sensors():
     print('Saving sensor data...') 
     #Save each sensor contents into respective files
     for sensor in sensors:
-        filename = filePath + sensor.get_name() + '.txt'
-        contents = sensor.get_contents()
-        f = open(filename, 'w+')
-        for data in contents:
-            f.write("%f\n" % data)
-        f.close()
+        #Only save if the sensor has been updated
+        if sensor.is_updated():
+            filename = filePath + sensor.get_name() + '.txt'
+            contents = sensor.get_contents()
+            f = open(filename, 'w+')
+            for data in contents:
+                f.write("%f\n" % data)
+            sensor.set_updated(False)
+            f.close()
 
 
 """
@@ -199,6 +216,7 @@ def looped_read():
                     ser.readline()
 
             sensor.set_contents(payload)
+            sensor.set_updated(True)
             #Retreive stop byte
             stp = ser.read(1)
             if (stp == bytes(STOP)):
@@ -223,22 +241,22 @@ def sigint_handler(signal_number, frame):
     stop_flag.set()
     exit(0)
 
+"""
+   Sets the save function in a threaded loop.
+   Save frequency determined by SAVE_PERIOD
+"""
+def thread_save():
+    #Set SIGINT handler
+    signal.signal(signal.SIGINT, sigint_handler)
 
+    #Create a thread to periodically save sensor data
+    thread = SaveThread(stop_flag)
+    thread.start()
 
-#Set SIGINT handler
-signal.signal(signal.SIGINT, sigint_handler)
-
-#Create a thread to periodically save sensor data
+#Begin save thread
 stop_flag = Event()
-thread = SaveThread(stop_flag)
-thread.start()
+thread_save()
 
-#TODO delete this
-while(True):
-    pass
-
-
-
-
-
+#Begin main thread loop
+looped_read()
 
