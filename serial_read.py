@@ -7,8 +7,26 @@ import signal
 from threading import Thread
 from threading import Event
 
-#Time in seconds between saves
+"""
+   Reads asynchronous sensor data from a pi's UART port
+   and saves after a specified period of time.
+
+   Sensors are defined by SensorData objects and the sender must send
+   the ID of the sensor it is sending for it to be handled properly.
+
+   SaveThread handles the saving of all updated SensorData objects in its
+   own thread - Wait period for saving is defined by SAVE_PERIOD
+
+   @author Samuel Barr
+   @version 11-26-19
+"""
+
 SAVE_PERIOD = 20
+
+PORT_NAME = '/dev/serial0'
+
+VERBOSE = True
+
 
 class SaveThread(Thread):
     """
@@ -84,6 +102,17 @@ class SensorData:
         self.updated = status
 
 
+"""
+   @return the sensor object to which the s_id
+           cooresponds to
+   *If none are found, return None
+"""
+def get_sensor(s_id):
+    for sensor in sensors:
+        if (s_id == sensor.get_id()):
+            return sensor
+    return None
+
 
 #Control bytes
 REQUEST = b'\xA5' 
@@ -99,13 +128,16 @@ sensors = [\
     SensorData('Right_Encoder', b'\x44', 1),
     SensorData('Angular_Position', b'\x55', 1),
     SensorData('Distance_Traveled', b'\x66', 1),
-    SensorData('Lidar_Distances', b'\x77', 360)
+    SensorData('Lidar_Front', b'\x80', 1),
+    SensorData('Lidar_Right', b'\x81', 1),
+    SensorData('Lidar_Back', b'\x82', 1),
+    SensorData('Lidar_Left', b'\x83', 1)
 ]
 
 
 #Initialize serial port
 ser = serial.Serial(
-    port='/dev/serial0',
+    port=PORT_NAME,
     baudrate = 9600,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -115,42 +147,31 @@ ser = serial.Serial(
 
 
 """
-   @return the sensor object to which the s_id
-           cooresponds to
-   *If none are found, return None
+   @param raw data
+   @return decoded integer
 """
-def get_sensor(s_id):
-    for sensor in sensors:
-        if (s_id == sensor.get_id()):
-            return sensor
-    return None
+def format_payload(data):
+    val = data.decode('utf-8').split('\n')
+    return float(val[0])
 
 
 """
-   Waits for initial request from sender.
-   Sender hands over the sensor id before 
-   sending its payload
-
-   @return sensor object (can be None)
+   Waits until data present on the buffer and reads from it.
+   @param read_line option reads until a newline is present.
+          defaults to false.
 """
-def handshake_init():
-    #Wait for something to appear on buffer
-    print('Waiting for transmission...')
+def read_transmission(read_line=False):
+    #Wait until data found on the buffer
+    if VERBOSE:
+        print('Wating for data on port')
     while (ser.in_waiting == 0):
         pass
-    print('Data found on port.')
-    #Read request byte
-    req = ser.read(1)
-    sensor = None
-    if (req == bytes(REQUEST)):
-        #ACK request
-        ser.write(ACK)
-        #Read sensor_id and select appropriate sensor
-        s_id = ser.read(1)
-        sensor = get_sensor(s_id)
+    #Read that ish
+    if (read_line):
+        return ser.readline()
+    else:
+        return ser.read(1)
 
-    return sensor
-      
 
 """
    Saves all sensor objects into respective txt files
@@ -168,6 +189,7 @@ def save_sensors():
     for sensor in sensors:
         #Only save if the sensor has been updated
         if sensor.is_updated():
+            print('Saving', sensor.get_name())
             filename = filePath + sensor.get_name() + '.txt'
             contents = sensor.get_contents()
             f = open(filename, 'w+')
@@ -175,15 +197,38 @@ def save_sensors():
                 f.write("%f\n" % data)
             sensor.set_updated(False)
             f.close()
+            print('Done.')
+            print()
+
+
 
 
 """
-   @param raw data
-   @return decoded integer
+   Waits for initial request from sender.
+   Sender hands over the sensor id before 
+   sending its payload
+
+   @return sensor object (can be None)
 """
-def format_payload(data):
-    val = data.decode('utf-8').split('\n')
-    return float(val[0])
+def handshake_init():
+    #Read request byte
+    req = read_transmission()
+    sensor = None
+
+    if (VERBOSE):
+        print('Received request:',req)
+    if (req == bytes(REQUEST)):
+        #Read sensor_id and select appropriate sensor
+        s_id = read_transmission()
+        if (VERBOSE):
+            print('Received sensor id:', s_id)
+        sensor = get_sensor(s_id)
+    else:
+        #Attempt to recover we're out of step
+        sensor = get_sensor(req)
+
+    return sensor
+
 
 
 """
@@ -204,13 +249,14 @@ def looped_read():
         #Sensor object determined by handshake
         sensor = handshake_init()
         if (sensor != None):
-            ser.write(ACK)
             #Retreive payload 
             payload = []
+            #TODO: Test this with the read_transmission - it may fix the
+            #      issue where every other line is empty...
             for i in range(sensor.get_length() * 2):
                 if (i % 2 == 0):
                     #Retrieve & format incoming data
-                    data = format_payload(ser.readline())
+                    data = format_payload(read_transmission(read_line=True))
                     payload.append(data)
                 else:
                     ser.readline()
@@ -218,17 +264,12 @@ def looped_read():
             sensor.set_contents(payload)
             sensor.set_updated(True)
             #Retreive stop byte
-            stp = ser.read(1)
-            if (stp == bytes(STOP)):
-                ser.write(ACK)
-            else:
-                print('Stop bit not found: ', stp)
-                ser.write(STOP)
+            stp = read_transmission()
             print('Object', sensor.get_name(), 'updated successfully')
-            #Write sensor data to file
+            print()
         else:
-            print('Sensor not found.')
-            ser.write(STOP)
+            print('Sensor not found')
+            print()
        
 
 """
@@ -257,6 +298,9 @@ def thread_save():
 stop_flag = Event()
 thread_save()
 
+#Tests saving battery level
+#sensors[5].set_contents([1000])
+#sensors[5].set_updated(True)
 #Begin main thread loop
 looped_read()
 
