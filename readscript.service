@@ -1,0 +1,14 @@
+[Unit]
+Description=Reads UART and saves sensor data
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u read.py
+WorkingDirectory=/home/pi/Documents
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target

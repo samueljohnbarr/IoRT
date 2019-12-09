@@ -5,7 +5,7 @@ from threading import Thread
 from threading import Event
 
 #How long to wait in between saves
-SAVE_PERIOD = 5
+SAVE_PERIOD = 20
 
 #Used to stop the thread on termination
 stop_flag = Event()
@@ -37,7 +37,7 @@ class SaveThread(Thread):
    *If SensorData folder does not exist, it will create it.
    @param verbose if it shoud print out what it's doing or not
 """
-def save_sensors(verbose):
+def save_sensors(verbose=False):
     filePath = './SensorData'
 
     #Create folder if it does not exist
@@ -50,7 +50,7 @@ def save_sensors(verbose):
     #Save each sensor contents into respective files
     for sensor in sensors.get_sensors():
         #Only save if the sensor has been updated
-        if sensor.is_updated():
+        if sensor.is_updated() or sensor.get_name() == 'Battery_Level':
             if (verbose):
                 print('Saving', sensor.get_name())
 

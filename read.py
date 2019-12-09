@@ -61,11 +61,18 @@ def read_transmission(read_line=False):
         print('Wating for data on port')
     while (ser.in_waiting == 0):
         pass
+
     #Read that ish
     if (read_line):
-        return ser.readline()
+        l = ser.readline()
     else:
-        return ser.read(1)
+        l = ser.read(1)
+    
+    #If bad data, try again
+    if (l == b'\n'):
+        read_transmission(read_line)
+
+    return l
 
 
 """
@@ -95,7 +102,6 @@ def handshake_init():
     
     if (sensor == None):
         print('Sensor Not Found. Failed ID:', s_id, 'Alt:', req)
-        print()
 
     return sensor
 
@@ -111,22 +117,18 @@ def looped_read():
         if (sensor != None):
             #Retreive payload 
             payload = []
-            #TODO: Test this with the read_transmission - it may fix the
-            #      issue where every other line is empty...
-            for i in range(sensor.get_length() * 2):
-                if (i % 2 == 0):
-                    #Retrieve & format incoming data
-                    data = format_payload(read_transmission(read_line=True))
-                    payload.append(data)
-                else:
-                    ser.readline()
-
+            for i in range(sensor.get_length()): #* 2):
+                #Retrieve & format incoming data
+                data = format_payload(read_transmission(read_line=True))
+                payload.append(data)
+            
+            #Update contents of sensor object
             sensor.set_contents(payload)
             sensor.set_updated(True)
             #Retreive stop byte
             stp = read_transmission()
-            print('Object', sensor.get_name(), 'updated successfully')
-            print()
+            print('Object', sensor.get_name(), 'updated to', data)
+        print()
        
 
 #Begin save thread
