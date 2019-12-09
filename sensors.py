@@ -84,10 +84,14 @@ sensor_objects = [\
     SensorData('Right_Encoder', b'\x44', 1),
     SensorData('Angular_Position', b'\x55', 1),
     SensorData('Distance_Traveled', b'\x66', 1),
-    SensorData('Lidar_Front', b'\x80', 1),
-    SensorData('Lidar_Right', b'\x81', 1),
-    SensorData('Lidar_Back', b'\x82', 1),
-    SensorData('Lidar_Left', b'\x83', 1)
+    SensorData('Lidar_North', b'\x80', 1),
+    SensorData('Lidar_NorthEast', b'\x81', 1),
+    SensorData('Lidar_East', b'\x82', 1),
+    SensorData('Lidar_SouthEast', b'\x83', 1),
+    SensorData('Lidar_South', b'\x84', 1),
+    SensorData('Lidar_SouthWest', b'\x85', 1),
+    SensorData('Lidar_West', b'\x86', 1),
+    SensorData('Lidar_NorthWest', b'\x87', 1)
 ]
 
 

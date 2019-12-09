@@ -20,7 +20,7 @@ import save
 
 PORT_NAME = '/dev/serial0'
 
-VERBOSE = True
+VERBOSE = False
 
 
 #Control bytes
@@ -79,6 +79,7 @@ def handshake_init():
     #Read request byte
     req = read_transmission()
     sensor = None
+    s_id = 0
 
     if (VERBOSE):
         print('Received request:',req)
@@ -91,6 +92,10 @@ def handshake_init():
     else:
         #Attempt to recover if out of step
         sensor = sensors.get_sensor(req)
+    
+    if (sensor == None):
+        print('Sensor Not Found. Failed ID:', s_id, 'Alt:', req)
+        print()
 
     return sensor
 
@@ -121,9 +126,6 @@ def looped_read():
             #Retreive stop byte
             stp = read_transmission()
             print('Object', sensor.get_name(), 'updated successfully')
-            print()
-        else:
-            print('Sensor not found')
             print()
        
 
