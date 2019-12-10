@@ -2,7 +2,14 @@
 This is the code that will run on a Raspberry Pi that is affixed to a mobile robot.  The robot will communicate with the pi using a wired UART connetion. These scripts read data from that connection, organize it, and saves data into respective files.
 
 ## Usage
-` python3 read.py ` 
+` python3 read.py ` Foreground standard output (for debugging) \
+` sudo systemctl start readscript.service ` Runs as a service (background) \
+` sudo systemctl stop readscript.service ` Stops the service \
+` sudo systemctl enable readscript.service ` Enables autostart on boot
+
+## readscript.service
+This allows the script to start running automatically when the Pi boots up.
+When cloning this repository, change the WorkingDirectory line to where it is cloned to.
 
 ## read.py
 This is the driver script.  Its main function is to read from the UART port in loop and update Sensor objects.
